@@ -18,12 +18,12 @@ For high bytes, assume UTF8 character
 def decode_ascii(source):
     return bytes([x for x in source if x < 0x80]).decode()
 
-M1 = 0b1110_0000
-M2 = 0b1111_0000
-M3 = 0b1111_1000
-B1 = 0b1100_0000
-B2 = 0b1110_0000
-B3 = 0b1111_0000
+M1 = 0b1110_0000 # E0
+M2 = 0b1111_0000 # F0
+M3 = 0b1111_1000 # F8
+B1 = 0b1100_0000 # C0
+B2 = 0b1110_0000 # E0
+B3 = 0b1111_0000 # F0
 
 def try_decode(inb):
     try:
@@ -31,7 +31,7 @@ def try_decode(inb):
     except:
         return False
 
-def decode_no_errors(source):
+def decode_no_errors(source, skip=True):
     try:
         out = source.decode("utf8")
     except:
@@ -42,17 +42,19 @@ def decode_no_errors(source):
             if char < 128:
                 out += chr(char)
             else:
-                size = -1 # if not like a starting UTF8
-                if char & M1 == B1: # 2 bytes utf8 char
+                size = 0 # if not like a starting UTF8
+                if (char & M1) == B1: # 2 bytes utf8 char
                     size = 1
-                elif char & M2 == B2: # 3 bytes utf8 char
+                elif (char & M2) == B2: # 3 bytes utf8 char
                     size = 2
-                elif char & M3 == B3: # 4 bytes utf8 char
+                elif (char & M3) == B3: # 4 bytes utf8 char
                     size = 3
                 res = try_decode(source[i:i + size + 1])
                 if res:
                     i = i + size
                     out += res
+                elif not skip:
+                    out += chr(char) # f"\\x{source[i]:02X}"
             i = i + 1
     return out
 
@@ -60,12 +62,14 @@ def _test():
     sources = [
         b'\x80abc' + 'é©¢ç'.encode("utf8"),
         b'\x80' + "😛😀😍".encode("utf8"),
+        b'\x801\xC02\xE03\xF04',
     ]
 
     for source in sources:
         print(source)
         print(">", decode_ascii(source))
         print(">", decode_no_errors(source))
+        print(">", decode_no_errors(source, skip=False))
 
 if __name__ == "__main__":
     _test()
